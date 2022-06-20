@@ -22,74 +22,83 @@ fi
 # Clean up for bad scans
 rm -Rf "${user_folder}/hashes/${rom_path}/tmp/"
 
+# Remove files that that don't require a hash
+remove_non_pertinent_files() {
+  rm "${user_folder}/hashes/${rom_path}/tmp/"*.{txt,nfo,xml,readme,README} &>/dev/null || :
+}
+
+# Clean tmp folder
+clean_tmp_folder() {
+  rm -R "${user_folder}/hashes/${rom_path}/tmp/"
+  printf ${sum^^} >"${user_folder}/hashes/${rom_path}/${file}.sha1"
+}
+
 # Process zip file hashes
-process_zip () {
+process_zip() {
   mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
   echo "unzipping ${file}"
   unzip -j -q "${user_folder}${rom_path}/${file}" -d "${user_folder}/hashes/${rom_path}/tmp"
-  rm "${user_folder}/hashes/${rom_path}/tmp/"*.{txt,nfo,xml,readme,README} &> /dev/null || :
+  remove_non_pertinent_files
   echo "hashing ${file}"
-  firstfile=( "${user_folder}/hashes/${rom_path}/tmp/"* )
+  firstfile=("${user_folder}/hashes/${rom_path}/tmp/"*)
   sum=$(sha1sum "$firstfile" | awk '{print $1;exit}')
-  rm -R "${user_folder}/hashes/${rom_path}/tmp/"
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  clean_tmp_folder
 }
 
 # Process 7zip file hashes
-process_7z () {
+process_7z() {
   mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
   echo "unzipping ${file}"
   7z e "${user_folder}${rom_path}/${file}" -o"${user_folder}/hashes/${rom_path}/tmp"
-  rm "${user_folder}/hashes/${rom_path}/tmp/"*.{txt,nfo,xml,readme,README} &> /dev/null || :
+  remove_non_pertinent_files
   find "${user_folder}/hashes/${rom_path}/tmp/" -empty -type d -delete
   echo "hashing ${file}"
-  firstfile=( "${user_folder}/hashes/${rom_path}/tmp/"* )
+  firstfile=("${user_folder}/hashes/${rom_path}/tmp/"*)
   sum=$(sha1sum "$firstfile" | awk '{print $1;exit}')
-  rm -R "${user_folder}/hashes/${rom_path}/tmp/"
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  clean_tmp_folder
 }
 
 # Just hash the file
-just_hash () {
+just_hash() {
   mkdir -p "${user_folder}/hashes/${rom_path}"
   echo "hashing ${file}"
   sum=$(sha1sum "${user_folder}/${rom_path}/${file}" | awk '{print $1;exit}')
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  printf ${sum^^} >"${user_folder}/hashes/${rom_path}/${file}.sha1"
 }
 
 # For NES roms strip headers to get raw sha1
-process_nes () {
+process_nes() {
   if [ $file_type == 'zip' ]; then
     mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
     echo "unzipping ${file}"
     unzip -j -q "${user_folder}${rom_path}/${file}" -d "${user_folder}/hashes/${rom_path}/tmp"
-    rm "${user_folder}/hashes/${rom_path}/tmp/"*.{txt,nfo,xml,readme,README} &> /dev/null || :
+    remove_non_pertinent_files
     file_to_sha="${user_folder}/hashes/${rom_path}/tmp/"*
   elif [ $file_type == 'x-7z-compressed' ]; then
     echo "unzipping ${file}"
     mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
     echo "unzipping ${file}"
     7z x "${user_folder}${rom_path}/${file}" -o"${user_folder}/hashes/${rom_path}/tmp"
-    rm "${user_folder}/hashes/${rom_path}/tmp/"*.{txt,nfo,xml,readme,README} &> /dev/null || :
+    remove_non_pertinent_files
     file_to_sha="${user_folder}/hashes/${rom_path}/tmp/"*
   else
     file_to_sha="${user_folder}/${rom_path}/${file}"
   fi
   echo "hashing ${file}"
-  sum=$(NES20Tool -operation rominfo -rom-file ${file_to_sha} |awk '/ROM SHA1/ {print $3;exit}' || sha1sum ${file_to_sha} | awk '{print $1;exit}')
+  sum=$(NES20Tool -operation rominfo -rom-file ${file_to_sha} | awk '/ROM SHA1/ {print $3;exit}' || sha1sum ${file_to_sha} | awk '{print $1;exit}')
   wait
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  printf ${sum^^} >"${user_folder}/hashes/${rom_path}/${file}.sha1"
   if [ -d "${user_folder}/hashes/${rom_path}/tmp" ]; then
     rm -R "${user_folder}/hashes/${rom_path}/tmp"
   fi
 }
 
 # Use the file name for a key for arcade games and pceCD
-process_name () {
-  printf "${file%.*}" > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+process_name() {
+  printf "${file%.*}" >"${user_folder}/hashes/${rom_path}/${file}.sha1"
 }
 
-process_chd () {
+process_chd() {
   echo "processing ${file}"
   mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
   chdman extractcd -i "${user_folder}${rom_path}/${file}" -o "${user_folder}/hashes/${rom_path}/tmp/FILE.cue"
@@ -101,20 +110,20 @@ process_chd () {
     echo "hashing ${file} (Track 1)"
     if [ -f "${user_folder}/hashes/${rom_path}/tmp/split/FILE (Track 1).bin" ]; then
       sum=$(sha1sum "${user_folder}/hashes/${rom_path}/tmp/split/FILE (Track 1).bin" | awk '{print $1;exit}')
-    elif [ -f "${user_folder}/hashes/${rom_path}/tmp/split/FILE (Track 01).bin" ];then
+    elif [ -f "${user_folder}/hashes/${rom_path}/tmp/split/FILE (Track 01).bin" ]; then
       sum=$(sha1sum "${user_folder}/hashes/${rom_path}/tmp/split/FILE (Track 01).bin" | awk '{print $1;exit}')
     fi
   elif grep -q "TRACK 01" "${user_folder}/hashes/${rom_path}/tmp/FILE.cue"; then
     echo "hashing ${file}"
     sum=$(sha1sum "${user_folder}/hashes/${rom_path}/tmp/FILE.bin" | awk '{print $1;exit}')
   fi
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  printf ${sum^^} >"${user_folder}/hashes/${rom_path}/${file}.sha1"
   if [ -d "${user_folder}/hashes/${rom_path}/tmp" ]; then
     rm -R "${user_folder}/hashes/${rom_path}/tmp"
   fi
 }
 
-process_bin () {
+process_bin() {
   echo "processing ${file}"
   # Make sure we have a cue file
   cuefile=$(echo "${file}" | sed 's/.bin$/.cue/')
@@ -130,28 +139,27 @@ process_bin () {
     echo "hashing ${file} (Track 1)"
     if [ -f "${user_folder}/${rom_path}/tmp/FILE (Track 1).bin" ]; then
       sum=$(sha1sum "${user_folder}/${rom_path}/tmp/FILE (Track 1).bin" | awk '{print $1;exit}')
-    elif [ -f "${user_folder}/${rom_path}/tmp/FILE (Track 01).bin" ];then
+    elif [ -f "${user_folder}/${rom_path}/tmp/FILE (Track 01).bin" ]; then
       sum=$(sha1sum "${user_folder}/${rom_path}/tmp/FILE (Track 01).bin" | awk '{print $1;exit}')
     fi
   elif grep -q "TRACK 01" "${user_folder}/${rom_path}/${cuefile}"; then
     echo "hashing ${file}"
     sum=$(sha1sum "${user_folder}/${rom_path}/${file}" | awk '{print $1;exit}')
   fi
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  printf ${sum^^} >"${user_folder}/hashes/${rom_path}/${file}.sha1"
   if [ -d "${user_folder}/${rom_path}/tmp" ]; then
     rm -R "${user_folder}/${rom_path}/tmp"
   fi
 }
 
 # Process special zip file hashes
-process_zip_by_name () {
+process_zip_by_name() {
   mkdir -p "${user_folder}/hashes/${rom_path}/tmp"
   echo "unzipping ${file}"
   unzip -j -q "${user_folder}${rom_path}/${file}" -d "${user_folder}/hashes/${rom_path}/tmp"
   echo "hashing ${file}"
   sum=$(sha1sum "${user_folder}/hashes/${rom_path}/tmp/${file%.*}."* | awk '{print $1;exit}')
-  rm -R "${user_folder}/hashes/${rom_path}/tmp/"
-  printf ${sum^^} > "${user_folder}/hashes/${rom_path}/${file}.sha1"
+  clean_tmp_folder
 }
 
 IFS=$'\n'
@@ -164,7 +172,7 @@ for file in $check_files; do
     elif [ $rom_type == 'arcade' ] || [ $rom_type == 'segaSaturn' ] && [[ "${file_extension,,}" != @(img|cue|ccd|disk*|sub) ]]; then
       process_name
     elif [ "${file_extension,,}" = 'chd' ] && [ $rom_type == 'pce' ]; then
-      process_name 
+      process_name
     elif [ "${file_extension,,}" = 'chd' ] || ([ $rom_type == 'psx' ] && [[ "${file_extension,,}" == "disk1" ]]); then
       process_chd
     elif [ "${file_extension,,}" = 'bin' ] && [ $rom_type != '3do' ]; then
